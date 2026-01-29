@@ -2,16 +2,21 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/tursodatabase/libsql-client-go/libsql"
 )
 
 var DB *sql.DB
 
-func Init(dataSourceName string) error {
+func Init(dbURL, authToken string) error {
 	var err error
-	DB, err = sql.Open("sqlite3", dataSourceName)
+
+	// Build connection string with auth token
+	connStr := fmt.Sprintf("%s?authToken=%s", dbURL, authToken)
+
+	DB, err = sql.Open("libsql", connStr)
 	if err != nil {
 		return err
 	}

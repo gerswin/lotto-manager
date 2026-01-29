@@ -1,17 +1,16 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
 	"net/http"
 	"strconv"
-	"encoding/json"
 
 	"github.com/go-chi/chi/v5"
 	"lotto-tg-app/internal/db"
 	"lotto-tg-app/internal/models"
-	"lotto-tg-app/internal/services"
 )
 
 // Data structure for Admin Dashboard

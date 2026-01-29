@@ -30,13 +30,18 @@ func main() {
 		port = "8080"
 	}
 
-	// 1. Init Database
-	dbPath := "lotto.db"
-	if err := db.Init(dbPath); err != nil {
+	// 1. Init Database (Turso)
+	dbURL := os.Getenv("TURSO_DATABASE_URL")
+	authToken := os.Getenv("TURSO_AUTH_TOKEN")
+	if dbURL == "" || authToken == "" {
+		log.Fatal("TURSO_DATABASE_URL and TURSO_AUTH_TOKEN must be set")
+	}
+
+	if err := db.Init(dbURL, authToken); err != nil {
 		log.Fatal("Failed to init DB:", err)
 	}
 	defer db.DB.Close()
-	log.Println("Database initialized at", dbPath)
+	log.Println("Database initialized with Turso")
 
 	// 2. Init Telegram Bot
 	if token != "" {

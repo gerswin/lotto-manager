@@ -1,0 +1,4 @@
+.env
+lotto.db
+.DS_Store
+/server
