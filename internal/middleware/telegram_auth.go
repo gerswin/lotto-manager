@@ -3,8 +3,10 @@ package middleware
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,43 +22,69 @@ type TelegramUser struct {
 	Username  string `json:"username"`
 }
 
-// TelegramAdminAuth verifica que el usuario sea un admin autorizado de Telegram
+// TelegramAdminAuth verifica autenticación por Telegram O BasicAuth
 func TelegramAdminAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Obtener initData del header o query param
+		// Método 1: Verificar BasicAuth (para acceso web normal)
+		if checkBasicAuth(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Método 2: Verificar Telegram initData
 		initData := r.Header.Get("X-Telegram-Init-Data")
 		if initData == "" {
 			initData = r.URL.Query().Get("tg_init_data")
 		}
 		if initData == "" {
-			// Intentar obtener de cookie
 			cookie, err := r.Cookie("tg_init_data")
 			if err == nil {
-				initData = cookie.Value
+				decoded, err := url.QueryUnescape(cookie.Value)
+				if err == nil {
+					initData = decoded
+				}
 			}
 		}
 
-		if initData == "" {
-			http.Error(w, "Acceso denegado: No autorizado", http.StatusUnauthorized)
-			return
+		if initData != "" {
+			user, valid := validateTelegramInitData(initData)
+			if valid {
+				adminIDs := os.Getenv("ADMIN_TELEGRAM_IDS")
+				if isAdmin(user.ID, adminIDs) {
+					log.Printf("Admin Telegram autenticado: %s (ID: %d)", user.FirstName, user.ID)
+					next.ServeHTTP(w, r)
+					return
+				}
+				log.Printf("Usuario Telegram no es admin: %d", user.ID)
+			} else {
+				log.Printf("initData inválido")
+			}
 		}
 
-		// Verificar y extraer usuario
-		user, valid := validateTelegramInitData(initData)
-		if !valid {
-			http.Error(w, "Acceso denegado: Datos inválidos", http.StatusUnauthorized)
-			return
-		}
-
-		// Verificar si el usuario está en la lista de admins
-		adminIDs := os.Getenv("ADMIN_TELEGRAM_IDS")
-		if !isAdmin(user.ID, adminIDs) {
-			http.Error(w, "Acceso denegado: No eres administrador", http.StatusForbidden)
-			return
-		}
-
-		next.ServeHTTP(w, r)
+		// Si no hay autenticación válida, pedir BasicAuth
+		w.Header().Set("WWW-Authenticate", `Basic realm="Lotto Admin"`)
+		http.Error(w, "Acceso denegado: No autorizado", http.StatusUnauthorized)
 	})
+}
+
+func checkBasicAuth(r *http.Request) bool {
+	auth := r.Header.Get("Authorization")
+	if auth == "" || !strings.HasPrefix(auth, "Basic ") {
+		return false
+	}
+
+	payload, err := base64.StdEncoding.DecodeString(auth[6:])
+	if err != nil {
+		return false
+	}
+
+	pair := strings.SplitN(string(payload), ":", 2)
+	if len(pair) != 2 {
+		return false
+	}
+
+	expectedPassword := os.Getenv("ADMIN_PASSWORD")
+	return pair[0] == "admin" && pair[1] == expectedPassword
 }
 
 func validateTelegramInitData(initData string) (*TelegramUser, bool) {
