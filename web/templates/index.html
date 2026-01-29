@@ -1,0 +1,61 @@
+{{ define "content" }}
+
+<!-- Buscador (Reemplaza el del header o va aquí arriba) -->
+<div class="mb-4 sticky top-16 bg-gray-100 py-2 z-40">
+    <input type="text" 
+           name="q" 
+           class="w-full p-3 rounded-lg border border-gray-300 shadow-sm focus:ring-2 focus:ring-blue-500 outline-none"
+           placeholder="🔍 Buscar número (ej: 5, 05, 50...)"
+           hx-get="/tickets/search?raffle_id={{ .RaffleID }}" 
+           hx-trigger="keyup changed delay:300ms, search" 
+           hx-target="#grid-container"
+           hx-indicator="#loading">
+</div>
+
+<!-- Indicador de carga -->
+<div id="loading" class="htmx-indicator text-center text-blue-500 my-2">
+    Buscando...
+</div>
+
+<!-- Contenedor de la Grilla -->
+<div id="grid-container" 
+     class="ticket-grid" 
+     hx-get="/tickets/search?raffle_id={{ .RaffleID }}" 
+     hx-trigger="ticketBooked from:body">
+    {{ template "grid" . }}
+</div>
+
+{{ end }}
+
+<!-- Partial: Grid de Tickets (reusado para búsqueda) -->
+{{ define "grid" }}
+    {{ range .Tickets }}
+        <div 
+            class="aspect-square flex flex-col items-center justify-center rounded-lg shadow-sm border cursor-pointer transition transform hover:scale-105 active:scale-95
+            {{ if eq .Status "available" }} bg-white border-green-400 text-green-700 hover:bg-green-50
+            {{ else if eq .Status "reserved" }} bg-yellow-100 border-yellow-400 text-yellow-800
+            {{ else if eq .Status "paid" }} bg-red-100 border-red-400 text-red-800 opacity-90
+            {{ end }}"
+            
+            {{ if eq .Status "available" }}
+                hx-get="/tickets/{{ .Number }}/book?raffle_id={{ $.RaffleID }}" 
+                hx-target="#modal-content" 
+                onclick="openModal()"
+            {{ else }}
+                onclick="alert('Este número ya no está disponible')"
+            {{ end }}
+        >
+            <span class="text-lg font-bold">{{ .Number }}</span>
+            <span class="text-xs uppercase font-semibold">
+                {{ if eq .Status "available" }} Libre
+                {{ else if eq .Status "reserved" }} Pend.
+                {{ else }} Vendido
+                {{ end }}
+            </span>
+        </div>
+    {{ else }}
+        <div class="col-span-full text-center text-gray-500 py-8">
+            No se encontraron números.
+        </div>
+    {{ end }}
+{{ end }}

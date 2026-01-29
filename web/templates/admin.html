@@ -1,0 +1,280 @@
+{{ define "content" }}
+<div class="space-y-8">
+    <div class="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm">
+        <h2 class="text-2xl font-bold text-gray-800">Panel de Control</h2>
+        <div class="text-sm text-gray-500">Sesión: <strong>admin</strong></div>
+    </div>
+
+    <!-- Selector de Rifa -->
+    <div class="flex flex-wrap gap-2 border-b border-gray-200 pb-4">
+        {{ $selectedID := .SelectedRaffleID }}
+        {{ range .ActiveRaffles }}
+        <a href="/admin?raffle_id={{ .ID }}" 
+           class="px-4 py-2 rounded-lg font-bold transition {{ if eq .ID $selectedID }}bg-blue-600 text-white shadow-md{{ else }}bg-gray-200 text-gray-600 hover:bg-gray-300{{ end }}">
+            {{ .Name }}
+        </a>
+        {{ end }}
+    </div>
+
+    <!-- Matriz de Números (Para apartar) -->
+    <div class="bg-white p-6 rounded-lg shadow-lg">
+        <h3 class="font-bold text-gray-700 mb-4 flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+            Grilla del Sorteo Actual (Click para apartar/ver)
+        </h3>
+        <div class="ticket-grid">
+            {{ $selectedID := .SelectedRaffleID }}
+            {{ range .Tickets }}
+            <div onclick="openAdminModal('{{ .ID }}')" 
+                 class="aspect-square flex items-center justify-center rounded border cursor-pointer text-xs font-bold transition transform hover:scale-110
+                 {{ if eq .Status "available" }} bg-white border-green-200 text-green-600 hover:bg-green-50
+                 {{ else if eq .Status "reserved" }} bg-yellow-100 border-yellow-400 text-yellow-800
+                 {{ else }} bg-red-100 border-red-400 text-red-800 {{ end }}">
+                {{ .Number }}
+            </div>
+            {{ end }}
+        </div>
+    </div>
+
+    <!-- Stats y Tabla Detallada -->
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <!-- Stats -->
+        <div class="lg:col-span-1 space-y-4">
+            <div class="bg-green-600 text-white p-4 rounded-lg shadow">
+                <p class="text-xs uppercase font-bold opacity-80">Recaudado</p>
+                <p class="text-3xl font-black">${{ printf "%.2f" .TotalCollected }}</p>
+            </div>
+            <div class="bg-blue-600 text-white p-4 rounded-lg shadow">
+                <p class="text-xs uppercase font-bold opacity-80">Vendidos</p>
+                <p class="text-3xl font-black">{{ .SoldCount }} / {{ .TotalTickets }}</p>
+            </div>
+            <div class="bg-orange-500 text-white p-4 rounded-lg shadow">
+                <p class="text-xs uppercase font-bold opacity-80">Por Cobrar</p>
+                <p class="text-3xl font-black">${{ printf "%.2f" .PendingAmount }}</p>
+            </div>
+
+            <!-- Boton Nueva Rifa -->
+            <button onclick="document.getElementById('new-raffle-form').classList.toggle('hidden')" class="w-full py-3 bg-gray-800 text-white rounded-lg font-bold hover:bg-black transition">
+                + Crear Nueva Rifa
+            </button>
+        </div>
+
+        <!-- Tabla -->
+        <div class="lg:col-span-3 bg-white rounded-lg shadow overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Num</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Cliente</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Saldo</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Estado</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {{ range .Tickets }}
+                    {{ if ne .Status "available" }}
+                    <tr class="hover:bg-gray-50 cursor-pointer" onclick="openAdminModal('{{ .ID }}')">
+                        <td class="px-4 py-3 font-black text-lg">#{{ .Number }}</td>
+                        <td class="px-4 py-3">
+                            <div class="text-sm font-bold text-gray-900">{{ .UserName }}</div>
+                            <div class="text-xs text-gray-500">{{ .UserPhone }}</div>
+                        </td>
+                        <td class="px-4 py-3 text-sm">
+                            <span class="font-bold text-green-600">${{ printf "%.2f" .TotalPaid }}</span>
+                            <span class="text-gray-400">/ ${{ printf "%.2f" (add .TotalPaid .Remaining) }}</span>
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 text-[10px] font-black rounded-full uppercase {{ if eq .Status "paid" }}bg-green-100 text-green-800{{ else }}bg-yellow-100 text-yellow-800{{ end }}">
+                                {{ .Status }}
+                            </span>
+                        </td>
+                    </tr>
+                    {{ end }}
+                    {{ end }}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Acción (Smart) -->
+<div id="admin-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+        <div id="modal-header" class="p-4 text-white flex justify-between items-center bg-gray-800">
+            <h3 id="modal-title" class="font-black text-xl uppercase tracking-widest">Ticket</h3>
+            <button onclick="closeAdminModal()" class="text-white hover:rotate-90 transition-transform text-3xl font-light">&times;</button>
+        </div>
+        
+        <div class="p-6 overflow-y-auto space-y-6">
+            <!-- SECCION: BÚSQUEDA DE USUARIO (Solo si está disponible) -->
+            <div id="user-search-section" class="hidden space-y-3">
+                <label class="block text-sm font-black text-gray-700 uppercase">🔍 Buscar Cliente Registrado</label>
+                <input type="text" id="user-search-input" onkeyup="searchExistingUsers(this.value)" 
+                       placeholder="Escribe nombre o teléfono..." 
+                       class="w-full p-3 border-2 border-blue-100 rounded-xl focus:border-blue-500 outline-none transition">
+                <div id="search-results" class="space-y-1"></div>
+            </div>
+
+            <!-- Info Cliente Actual -->
+            <div id="client-info-display" class="bg-gray-50 p-4 rounded-xl border-2 border-gray-100">
+                <h4 class="text-[10px] uppercase text-gray-400 font-black mb-2 tracking-widest">Información del Cliente</h4>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase">Nombre</p>
+                        <input type="text" id="client-name-input" class="font-bold text-gray-800 bg-transparent border-b w-full outline-none focus:border-blue-500" placeholder="Nombre completo">
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase">Teléfono</p>
+                        <input type="text" id="client-phone-input" class="font-bold text-gray-800 bg-transparent border-b w-full outline-none focus:border-blue-500" placeholder="Ej: 04121234567">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Historial de Pagos -->
+            <div id="payments-section">
+                <h4 class="text-[10px] uppercase text-gray-400 font-black mb-2 tracking-widest">Historial de Abonos</h4>
+                <div id="payments-list" class="space-y-2"></div>
+            </div>
+
+            <!-- Registrar Pago / Apartar -->
+            <div class="bg-blue-50 p-4 rounded-xl border-2 border-blue-100">
+                <h4 id="action-title" class="text-[10px] uppercase text-blue-500 font-black mb-3 tracking-widest text-center">Registrar Pago / Abono</h4>
+                <form id="admin-payment-form" method="POST" action="" class="space-y-3">
+                    <!-- Campos ocultos para cuando es venta nueva -->
+                    <input type="hidden" name="name" id="hidden-name">
+                    <input type="hidden" name="phone" id="hidden-phone">
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-500 uppercase mb-1">Monto ($)</label>
+                            <input type="number" step="0.01" name="amount" id="modal-amount" required class="w-full p-2 border-2 border-white rounded-lg font-black text-blue-600 text-xl shadow-inner">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-500 uppercase mb-1">Método</label>
+                            <select name="method" class="w-full p-2 border-2 border-white rounded-lg bg-white font-bold shadow-inner">
+                                <option value="cash">💵 Efectivo</option>
+                                <option value="transfer">🏦 Transferencia</option>
+                            </select>
+                        </div>
+                    </div>
+                    <input type="text" name="reference" placeholder="Nota o Referencia..." class="w-full p-2 border-2 border-white rounded-lg shadow-inner">
+                    <button type="submit" onclick="syncUserFields()" class="w-full py-3 bg-green-600 text-white font-black rounded-xl hover:bg-green-700 shadow-lg transform active:scale-95 transition">
+                        💾 GUARDAR CAMBIOS
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="p-4 border-t bg-gray-50 flex justify-between items-center">
+            <button id="btn-release" hx-post="" hx-confirm="🚨 ¿BORRAR TODO y liberar número?" hx-swap="none" hx-on::after-request="window.location.reload()"
+                    class="px-4 py-2 text-red-500 font-black text-xs uppercase hover:bg-red-50 rounded-lg transition">
+                🗑️ Liberar
+            </button>
+            <button onclick="closeAdminModal()" class="px-8 py-2 bg-gray-200 text-gray-700 rounded-xl font-black text-xs uppercase hover:bg-gray-300 transition">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Formulario Oculto Nueva Rifa -->
+<div id="new-raffle-form" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white p-6 rounded-2xl shadow-xl w-full max-w-md">
+        <h3 class="font-black text-xl mb-4">NUEVA RIFA</h3>
+        <form action="/admin/raffles" method="POST" class="space-y-4">
+            <input type="text" name="name" required placeholder="Nombre del Sorteo" class="w-full p-3 border rounded-xl">
+            <input type="number" step="0.01" name="price" required placeholder="Precio Boleto ($)" class="w-full p-3 border rounded-xl">
+            <select name="type" class="w-full p-3 border rounded-xl bg-white">
+                <option value="terminal">Terminal (00-99)</option>
+                <option value="triple">Triple (000-999)</option>
+            </select>
+            <div class="flex gap-2">
+                <button type="button" onclick="document.getElementById('new-raffle-form').classList.add('hidden')" class="flex-1 py-3 bg-gray-200 rounded-xl font-bold">Cancelar</button>
+                <button type="submit" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">CREAR</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function syncUserFields() {
+        document.getElementById('hidden-name').value = document.getElementById('client-name-input').value;
+        document.getElementById('hidden-phone').value = document.getElementById('client-phone-input').value;
+    }
+
+    async function searchExistingUsers(val) {
+        if (val.length < 2) {
+            document.getElementById('search-results').innerHTML = "";
+            return;
+        }
+        const res = await fetch(`/admin/users/search?q=${val}`);
+        const users = await res.json();
+        
+        let html = "";
+        users.forEach(u => {
+            html += `
+                <div onclick="selectUser('${u.name}', '${u.phone}')" class="p-2 bg-blue-50 hover:bg-blue-100 cursor-pointer rounded border border-blue-200 text-sm">
+                    <strong>${u.name}</strong> - ${u.phone}
+                </div>
+            `;
+        });
+        document.getElementById('search-results').innerHTML = html;
+    }
+
+    function selectUser(name, phone) {
+        document.getElementById('client-name-input').value = name;
+        document.getElementById('client-phone-input').value = phone;
+        document.getElementById('search-results').innerHTML = "";
+        document.getElementById('user-search-input').value = "";
+    }
+
+    async function openAdminModal(ticketId) {
+        document.getElementById('payments-list').innerHTML = "Cargando...";
+        
+        const res = await fetch(`/admin/tickets/${ticketId}/details`);
+        const data = await res.json();
+        
+        document.getElementById('modal-title').innerText = `TICKET #${data.ticket.number}`;
+        
+        const isAvailable = data.ticket.status === 'available';
+        
+        // Mostrar/Ocultar buscador de usuarios
+        document.getElementById('user-search-section').classList.toggle('hidden', !isAvailable);
+        
+        // Color del header según estado
+        const header = document.getElementById('modal-header');
+        header.className = "p-4 text-white flex justify-between items-center " + 
+            (data.ticket.status === 'available' ? 'bg-green-600' : (data.ticket.status === 'paid' ? 'bg-gray-800' : 'bg-orange-500'));
+
+        // Llenar inputs
+        document.getElementById('client-name-input').value = data.user.name || "";
+        document.getElementById('client-phone-input').value = data.user.phone || "";
+        document.getElementById('modal-amount').value = data.ticket.remaining.toFixed(2);
+
+        // Listar pagos
+        let paymentsHtml = "";
+        if (data.payments) {
+            data.payments.forEach(p => {
+                paymentsHtml += `
+                    <div class="flex justify-between items-center p-2 rounded bg-white border text-xs">
+                        <div><strong>$${p.amount.toFixed(2)}</strong> <span class="text-gray-400">(${p.method})</span></div>
+                        <div class="text-gray-500 font-mono">${p.reference}</div>
+                    </div>
+                `;
+            });
+        }
+        document.getElementById('payments-list').innerHTML = paymentsHtml || "<p class='text-xs italic text-gray-400'>Sin pagos.</p>";
+
+        // Configurar Form y Release
+        document.getElementById('admin-payment-form').action = `/admin/tickets/${ticketId}/payment`;
+        const btnRelease = document.getElementById('btn-release');
+        btnRelease.setAttribute('hx-post', `/admin/tickets/${ticketId}/release`);
+        btnRelease.classList.toggle('hidden', isAvailable);
+        htmx.process(btnRelease);
+
+        document.getElementById('admin-modal').classList.remove('hidden');
+    }
+
+    function closeAdminModal() {
+        document.getElementById('admin-modal').classList.add('hidden');
+    }
+</script>
+{{ end }}
