@@ -205,18 +205,22 @@
             document.getElementById('search-results').innerHTML = "";
             return;
         }
-        const res = await fetch(`/admin/users/search?q=${val}`);
-        const users = await res.json();
-        
-        let html = "";
-        users.forEach(u => {
-            html += `
-                <div onclick="selectUser('${u.name}', '${u.phone}')" class="p-2 bg-blue-50 hover:bg-blue-100 cursor-pointer rounded border border-blue-200 text-sm">
-                    <strong>${u.name}</strong> - ${u.phone}
-                </div>
-            `;
-        });
-        document.getElementById('search-results').innerHTML = html;
+        try {
+            const res = await fetch(`/admin/users/search?q=${val}`, {credentials: 'include'});
+            const users = await res.json();
+
+            let html = "";
+            users.forEach(u => {
+                html += `
+                    <div onclick="selectUser('${u.name}', '${u.phone}')" class="p-2 bg-blue-50 hover:bg-blue-100 cursor-pointer rounded border border-blue-200 text-sm">
+                        <strong>${u.name}</strong> - ${u.phone}
+                    </div>
+                `;
+            });
+            document.getElementById('search-results').innerHTML = html;
+        } catch(e) {
+            console.error('Search error:', e);
+        }
     }
 
     function selectUser(name, phone) {
@@ -228,9 +232,14 @@
 
     async function openAdminModal(ticketId) {
         document.getElementById('payments-list').innerHTML = "Cargando...";
-        
-        const res = await fetch(`/admin/tickets/${ticketId}/details`);
-        const data = await res.json();
+
+        try {
+            const res = await fetch(`/admin/tickets/${ticketId}/details`, {credentials: 'include'});
+            if (!res.ok) {
+                alert('Error: ' + res.status + ' - Recarga la página');
+                return;
+            }
+            const data = await res.json();
         
         document.getElementById('modal-title').innerText = `TICKET #${data.ticket.number}`;
         
@@ -271,6 +280,10 @@
         htmx.process(btnRelease);
 
         document.getElementById('admin-modal').classList.remove('hidden');
+        } catch(e) {
+            console.error('Modal error:', e);
+            alert('Error al cargar ticket: ' + e.message);
+        }
     }
 
     function closeAdminModal() {
