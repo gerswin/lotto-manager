@@ -33,23 +33,34 @@ func TelegramAdminAuth(next http.Handler) http.Handler {
 
 		// Método 2: Verificar Telegram initData
 		initData := r.Header.Get("X-Telegram-Init-Data")
+		log.Printf("[DEBUG] Header X-Telegram-Init-Data: %v", initData != "")
+
 		if initData == "" {
 			initData = r.URL.Query().Get("tg_init_data")
+			log.Printf("[DEBUG] Query tg_init_data: %v", initData != "")
 		}
 		if initData == "" {
 			cookie, err := r.Cookie("tg_init_data")
 			if err == nil {
+				log.Printf("[DEBUG] Cookie raw: %s", cookie.Value[:min(50, len(cookie.Value))])
 				decoded, err := url.QueryUnescape(cookie.Value)
 				if err == nil {
 					initData = decoded
+					log.Printf("[DEBUG] Cookie decoded OK, len: %d", len(initData))
+				} else {
+					log.Printf("[DEBUG] Cookie decode error: %v", err)
 				}
+			} else {
+				log.Printf("[DEBUG] No cookie found: %v", err)
 			}
 		}
 
 		if initData != "" {
+			log.Printf("[DEBUG] initData len: %d, prefix: %s", len(initData), initData[:min(100, len(initData))])
 			user, valid := validateTelegramInitData(initData)
 			if valid {
 				adminIDs := os.Getenv("ADMIN_TELEGRAM_IDS")
+				log.Printf("[DEBUG] User ID: %d, AdminIDs: %s", user.ID, adminIDs)
 				if isAdmin(user.ID, adminIDs) {
 					log.Printf("Admin Telegram autenticado: %s (ID: %d)", user.FirstName, user.ID)
 					next.ServeHTTP(w, r)
@@ -57,14 +68,23 @@ func TelegramAdminAuth(next http.Handler) http.Handler {
 				}
 				log.Printf("Usuario Telegram no es admin: %d", user.ID)
 			} else {
-				log.Printf("initData inválido")
+				log.Printf("[DEBUG] initData validation failed")
 			}
+		} else {
+			log.Printf("[DEBUG] No initData found")
 		}
 
 		// Si no hay autenticación válida, pedir BasicAuth
 		w.Header().Set("WWW-Authenticate", `Basic realm="Lotto Admin"`)
 		http.Error(w, "Acceso denegado: No autorizado", http.StatusUnauthorized)
 	})
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func checkBasicAuth(r *http.Request) bool {
