@@ -221,9 +221,10 @@ func AdminGetTicketDetails(w http.ResponseWriter, r *http.Request) {
 		Price    float64          `json:"price"`
 	}
 
-	// 1. Get Ticket & Price
+	// 1. Get Ticket & Price (usando COALESCE para manejar NULL)
 	err := db.DB.QueryRow(`
-		SELECT t.id, t.number, t.status, r.ticket_price, u.id, u.name, u.phone
+		SELECT t.id, t.number, t.status, r.ticket_price,
+		       COALESCE(u.id, 0), COALESCE(u.name, ''), COALESCE(u.phone, '')
 		FROM tickets t
 		JOIN raffles r ON t.raffle_id = r.id
 		LEFT JOIN users u ON t.user_id = u.id
@@ -232,18 +233,25 @@ func AdminGetTicketDetails(w http.ResponseWriter, r *http.Request) {
 		&data.User.ID, &data.User.Name, &data.User.Phone,
 	)
 	if err != nil {
+		log.Printf("Error getting ticket %s: %v", ticketID, err)
 		http.Error(w, "Ticket not found", 404)
 		return
 	}
 
-	// 2. Get Payments
+	// 2. Get Payments and calculate totals
+	var totalPaid float64
 	rows, _ := db.DB.Query("SELECT amount, method, reference, is_verified, created_at FROM payments WHERE ticket_id = ? ORDER BY created_at DESC", ticketID)
 	defer rows.Close()
 	for rows.Next() {
 		var p models.Payment
 		rows.Scan(&p.Amount, &p.Method, &p.Reference, &p.IsVerified, &p.CreatedAt)
 		data.Payments = append(data.Payments, p)
+		totalPaid += p.Amount
 	}
+
+	// Calculate remaining
+	data.Ticket.TotalPaid = totalPaid
+	data.Ticket.Remaining = data.Price - totalPaid
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(data)
