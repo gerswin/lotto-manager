@@ -47,6 +47,11 @@
         tg.ready();
         tg.expand();
 
+        // Guardar initData en cookie para autenticación
+        if (tg.initData) {
+            document.cookie = "tg_init_data=" + encodeURIComponent(tg.initData) + "; path=/; SameSite=Strict";
+        }
+
         function openModal() {
             document.getElementById('modal-overlay').classList.remove('hidden');
         }

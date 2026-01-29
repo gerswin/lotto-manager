@@ -13,6 +13,7 @@ import (
 	"github.com/joho/godotenv"
 	"lotto-tg-app/internal/db"
 	"lotto-tg-app/internal/handlers"
+	tgmiddleware "lotto-tg-app/internal/middleware"
 	"lotto-tg-app/internal/services"
 )
 
@@ -66,17 +67,13 @@ func main() {
 	r.Get("/tickets/{number}/book", handlers.GetBookModal)
 	r.Post("/tickets/{number}/book", handlers.PostBook)
 
-	// 6. Admin Routes (Protected)
+	// 6. Admin Routes (Protected by Telegram Auth)
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.BasicAuth("Lotto Admin", map[string]string{
-			"admin": os.Getenv("ADMIN_PASSWORD"), // User: admin
-		}))
-						r.Get("/admin", handlers.AdminDashboard)
-						r.Get("/admin/users/search", handlers.AdminSearchUsers) // New
-						r.Get("/admin/tickets/{id}/details", handlers.AdminGetTicketDetails)
-				 // New
-				r.Post("/admin/raffles", handlers.AdminCreateRaffle)
-		 // New Route
+		r.Use(tgmiddleware.TelegramAdminAuth)
+		r.Get("/admin", handlers.AdminDashboard)
+		r.Get("/admin/users/search", handlers.AdminSearchUsers)
+		r.Get("/admin/tickets/{id}/details", handlers.AdminGetTicketDetails)
+		r.Post("/admin/raffles", handlers.AdminCreateRaffle)
 		r.Post("/admin/tickets/{id}/payment", handlers.AdminAddPayment)
 		r.Post("/admin/tickets/{id}/release", handlers.AdminReleaseTicket)
 	})
