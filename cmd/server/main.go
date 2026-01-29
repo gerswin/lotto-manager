@@ -67,6 +67,9 @@ func main() {
 	r.Get("/tickets/{number}/book", handlers.GetBookModal)
 	r.Post("/tickets/{number}/book", handlers.PostBook)
 
+	// Admin Login (captura initData de Telegram)
+	r.Get("/admin/login", handlers.AdminLogin)
+
 	// 6. Admin Routes (Protected by Telegram Auth)
 	r.Group(func(r chi.Router) {
 		r.Use(tgmiddleware.TelegramAdminAuth)

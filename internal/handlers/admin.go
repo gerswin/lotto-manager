@@ -13,6 +13,72 @@ import (
 	"lotto-tg-app/internal/models"
 )
 
+// AdminLogin muestra página que captura initData de Telegram y redirige al admin
+func AdminLogin(w http.ResponseWriter, r *http.Request) {
+	html := `<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Admin Login</title>
+	<script src="https://telegram.org/js/telegram-web-app.js"></script>
+	<style>
+		body {
+			font-family: -apple-system, sans-serif;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			height: 100vh;
+			margin: 0;
+			background: #f0f0f0;
+		}
+		.loader {
+			text-align: center;
+			padding: 40px;
+			background: white;
+			border-radius: 16px;
+			box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+		}
+		.spinner {
+			width: 40px;
+			height: 40px;
+			border: 4px solid #e0e0e0;
+			border-top-color: #3b82f6;
+			border-radius: 50%;
+			animation: spin 1s linear infinite;
+			margin: 0 auto 16px;
+		}
+		@keyframes spin { to { transform: rotate(360deg); } }
+		.error { color: #ef4444; margin-top: 16px; }
+	</style>
+</head>
+<body>
+	<div class="loader">
+		<div class="spinner"></div>
+		<p>Autenticando...</p>
+		<p id="error" class="error" style="display:none;"></p>
+	</div>
+	<script>
+		const tg = window.Telegram.WebApp;
+		tg.ready();
+		tg.expand();
+
+		if (tg.initData) {
+			document.cookie = "tg_init_data=" + encodeURIComponent(tg.initData) + "; path=/; SameSite=Lax; max-age=86400";
+			setTimeout(() => {
+				window.location.href = "/admin";
+			}, 500);
+		} else {
+			document.getElementById("error").style.display = "block";
+			document.getElementById("error").innerText = "No se detectó Telegram. Abre desde la Mini App.";
+		}
+	</script>
+</body>
+</html>`
+	w.Header().Set("Content-Type", "text/html")
+	fmt.Fprint(w, html)
+}
+
 // Data structure for Admin Dashboard
 type AdminData struct {
 	Title          string
